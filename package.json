@@ -1,0 +1,40 @@
+{
+  "name": "dukaspot",
+  "version": "0.9.5",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c green,blue \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm run dev -w @dukaspot/api",
+    "dev:web": "npm run dev -w @dukaspot/web",
+    "dev:worker": "npm run dev -w @dukaspot/worker",
+    "dev:full": "concurrently -n api,web,worker -c green,blue,magenta \"npm:dev:api\" \"npm:dev:web\" \"npm:dev:worker\"",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "eslint .",
+    "typecheck": "tsc -b",
+    "db:validate": "npm run prisma:validate -w @dukaspot/database",
+    "audit": "npm audit --workspaces",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run db:validate && npm run build && npm run audit"
+  },
+  "engines": {
+    "node": ">=20.20.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "concurrently": "^9.1.0",
+    "eslint": "^10.8.0",
+    "prisma": "^6.19.3",
+    "tsx": "^4.23.9",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.66.0"
+  }
+}

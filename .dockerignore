@@ -1,0 +1,17 @@
+node_modules
+**/node_modules
+dist
+**/dist
+apps/web/.next
+**/.next
+**/*.tsbuildinfo
+.turbo
+.next
+.cache
+.git
+.codex
+.agents
+npm-debug.log
+.env
+.env.*
+!*.env.example

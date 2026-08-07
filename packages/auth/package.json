@@ -1,0 +1,19 @@
+{
+  "name": "@dukaspot/auth",
+  "version": "0.9.5",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "npm run build && node tests/auth.test.mjs",
+    "typecheck": "tsc -b --pretty false"
+  }
+}

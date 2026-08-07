@@ -1,0 +1,445 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MembershipRole {
+  PLATFORM_SUPER_ADMIN
+  MERCHANT_OWNER
+  MERCHANT_ADMIN
+  FINANCE_MANAGER
+  SALES_MANAGER
+  SALES_AGENT
+  INVENTORY_MANAGER
+  FULFILMENT_AGENT
+  ACCOUNTANT
+  READ_ONLY_AUDITOR
+
+  @@map("membership_role")
+}
+
+enum OrderStatus {
+  DRAFT
+  QUOTATION
+  RESERVED
+  CONFIRMED
+  PARTIALLY_PAID
+  PAID
+  PROCESSING
+  DISPATCHED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  FAILED_FULFILMENT
+
+  @@map("order_status")
+}
+
+enum InventoryMovementType {
+  OPENING_STOCK
+  PURCHASE
+  SALE_RESERVATION
+  RESERVATION_RELEASE
+  SALE_FULFILMENT
+  CUSTOMER_RETURN
+  SUPPLIER_RETURN
+  DAMAGE
+  ADJUSTMENT
+  BRANCH_TRANSFER
+  STOCK_COUNT_CORRECTION
+
+  @@map("inventory_movement_type")
+}
+
+enum PaymentProvider {
+  MPESA_STK
+  MPESA_TILL
+  MPESA_PAYBILL
+  POCHI
+  BANK
+  CASH
+  CASH_ON_DELIVERY
+  CARD
+
+  @@map("payment_provider")
+}
+
+enum PaymentStatus {
+  UNMATCHED
+  PARTIALLY_ALLOCATED
+  ALLOCATED
+  CLASSIFIED
+  DUPLICATE
+  REVERSED
+  REFUNDED
+  FAILED
+
+  @@map("payment_status")
+}
+
+enum JournalEntryStatus {
+  POSTED
+  REVERSED
+
+  @@map("journal_entry_status")
+}
+
+model User {
+  id            String               @id @default(uuid()) @db.Uuid
+  email         String               @unique
+  name          String
+  passwordHash  String?
+  emailVerified Boolean              @default(false)
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+  memberships   MerchantMembership[]
+  sessions      Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Merchant {
+  id             String                @id @default(uuid()) @db.Uuid
+  slug           String                @unique
+  legalName      String                @map("legal_name")
+  tradingName    String                @map("trading_name")
+  currency       String                @default("KES")
+  timeZone       String                @default("Africa/Nairobi") @map("time_zone")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+  memberships    MerchantMembership[]
+  branches       Branch[]
+  customers      Customer[]
+  products       Product[]
+  variants       ProductVariant[]
+  locations      InventoryLocation[]
+  movements      InventoryMovement[]
+  orders         Order[]
+  orderItems     OrderItem[]
+  payments       Payment[]
+  allocations    PaymentAllocation[]
+  journalEntries JournalEntry[]
+  journalLines   JournalLine[]
+  outboxEvents   OutboxEvent[]
+  webhookEvents  WebhookEvent[]
+  idempotencyRecords IdempotencyRecord[]
+
+  @@map("merchants")
+}
+
+model MerchantMembership {
+  id         String         @id @default(uuid()) @db.Uuid
+  merchantId String         @map("merchant_id") @db.Uuid
+  userId     String         @map("user_id") @db.Uuid
+  role       MembershipRole
+  active     Boolean        @default(true)
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+  merchant   Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, userId])
+  @@index([userId])
+  @@map("merchant_memberships")
+}
+
+model Branch {
+  id         String    @id @default(uuid()) @db.Uuid
+  merchantId String    @map("merchant_id") @db.Uuid
+  name       String
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  merchant   Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  locations  InventoryLocation[]
+  orders     Order[]
+
+  @@unique([merchantId, name])
+  @@index([merchantId])
+  @@map("branches")
+}
+
+model Customer {
+  id         String    @id @default(uuid()) @db.Uuid
+  merchantId String    @map("merchant_id") @db.Uuid
+  displayName String   @map("display_name")
+  primaryPhone String? @map("primary_phone")
+  whatsappId String?   @map("whatsapp_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  merchant   Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  orders     Order[]
+
+  @@unique([merchantId, primaryPhone])
+  @@index([merchantId, displayName])
+  @@map("customers")
+}
+
+model Product {
+  id         String           @id @default(uuid()) @db.Uuid
+  merchantId String           @map("merchant_id") @db.Uuid
+  name       String
+  category   String?
+  active     Boolean          @default(true)
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+  merchant   Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  variants   ProductVariant[]
+
+  @@unique([merchantId, name])
+  @@index([merchantId])
+  @@map("products")
+}
+
+model ProductVariant {
+  id                String              @id @default(uuid()) @db.Uuid
+  merchantId        String              @map("merchant_id") @db.Uuid
+  productId         String              @map("product_id") @db.Uuid
+  externalId        String?             @map("external_id")
+  sku               String
+  name              String
+  sellingPriceMinor BigInt              @map("selling_price_minor")
+  costPriceMinor    BigInt              @map("cost_price_minor")
+  reorderPoint      Int                 @default(0) @map("reorder_point")
+  openingStock      Int                 @default(0) @map("opening_stock")
+  currency          String              @default("KES")
+  active            Boolean             @default(true)
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  merchant          Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  product           Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  movements         InventoryMovement[]
+  orderItems        OrderItem[]
+
+  @@unique([merchantId, sku])
+  @@unique([merchantId, externalId])
+  @@index([merchantId, productId])
+  @@map("product_variants")
+}
+
+model InventoryLocation {
+  id         String              @id @default(uuid()) @db.Uuid
+  merchantId String              @map("merchant_id") @db.Uuid
+  branchId   String?             @map("branch_id") @db.Uuid
+  name       String
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+  merchant   Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  branch     Branch?             @relation(fields: [branchId], references: [id])
+  movements  InventoryMovement[]
+
+  @@unique([merchantId, name])
+  @@index([merchantId, branchId])
+  @@map("inventory_locations")
+}
+
+model InventoryMovement {
+  id               String                @id @default(uuid()) @db.Uuid
+  merchantId       String                @map("merchant_id") @db.Uuid
+  variantId        String                @map("variant_id") @db.Uuid
+  locationId       String                @map("location_id") @db.Uuid
+  movementType     InventoryMovementType @map("movement_type")
+  quantity         Int
+  sourceEventId    String                @map("source_event_id")
+  occurredAt       DateTime              @default(now()) @map("occurred_at")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  merchant         Merchant              @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  variant          ProductVariant        @relation(fields: [variantId], references: [id])
+  location         InventoryLocation     @relation(fields: [locationId], references: [id])
+
+  @@unique([merchantId, sourceEventId])
+  @@index([merchantId, variantId, locationId])
+  @@map("inventory_movements")
+}
+
+model Order {
+  id         String      @id @default(uuid()) @db.Uuid
+  merchantId String      @map("merchant_id") @db.Uuid
+  customerId String?     @map("customer_id") @db.Uuid
+  branchId   String?     @map("branch_id") @db.Uuid
+  orderNumber String     @map("order_number")
+  status     OrderStatus @default(DRAFT)
+  stage      String      @default("confirmed")
+  paymentStatus String   @default("unpaid") @map("payment_status")
+  currency   String      @default("KES")
+  totalMinor BigInt      @map("total_minor")
+  deliveryFeeMinor BigInt @default(0) @map("delivery_fee_minor")
+  discountMinor BigInt   @default(0) @map("discount_minor")
+  source     String      @default("WhatsApp")
+  location   String      @default("")
+  agent      String      @default("Unassigned")
+  notes      String      @default("")
+  lastFollowUpAt DateTime? @map("last_follow_up_at")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+  merchant   Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  customer   Customer?   @relation(fields: [customerId], references: [id])
+  branch     Branch?     @relation(fields: [branchId], references: [id])
+  items      OrderItem[]
+  allocations PaymentAllocation[]
+
+  @@unique([merchantId, orderNumber])
+  @@index([merchantId, customerId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                   String         @id @default(uuid()) @db.Uuid
+  merchantId           String         @map("merchant_id") @db.Uuid
+  orderId              String         @map("order_id") @db.Uuid
+  variantId            String?        @map("variant_id") @db.Uuid
+  description          String
+  quantity             Int
+  unitSellingPriceMinor BigInt        @map("unit_selling_price_minor")
+  unitCostMinor        BigInt         @map("unit_cost_minor")
+  discountMinor        BigInt         @default(0) @map("discount_minor")
+  taxMinor             BigInt         @default(0) @map("tax_minor")
+  merchant             Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  order                Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant              ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@index([merchantId, orderId])
+  @@map("order_items")
+}
+
+model Payment {
+  id              String              @id @default(uuid()) @db.Uuid
+  merchantId      String              @map("merchant_id") @db.Uuid
+  externalId      String              @map("external_id")
+  provider        PaymentProvider
+  receipt         String?
+  payerPhone      String?             @map("payer_phone")
+  payerName       String?             @map("payer_name")
+  amountMinor     BigInt              @map("amount_minor")
+  currency        String              @default("KES")
+  status          PaymentStatus       @default(UNMATCHED)
+  classification  String              @default("unknown")
+  details         String              @default("")
+  receivedAt      DateTime            @map("received_at")
+  importedAt      DateTime            @default(now()) @map("imported_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  merchant        Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  allocations     PaymentAllocation[]
+
+  @@unique([merchantId, externalId])
+  @@unique([merchantId, provider, receipt])
+  @@index([merchantId, status])
+  @@map("payments")
+}
+
+model PaymentAllocation {
+  id          String   @id @default(uuid()) @db.Uuid
+  merchantId  String   @map("merchant_id") @db.Uuid
+  paymentId   String   @map("payment_id") @db.Uuid
+  orderId     String   @map("order_id") @db.Uuid
+  amountMinor BigInt   @map("amount_minor")
+  rule        String
+  confidence  Int
+  explanation String
+  createdAt   DateTime @default(now()) @map("created_at")
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  payment     Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, paymentId, orderId])
+  @@index([merchantId, orderId])
+  @@map("payment_allocations")
+}
+
+model JournalEntry {
+  id            String             @id @default(uuid()) @db.Uuid
+  merchantId    String             @map("merchant_id") @db.Uuid
+  sourceEventId String             @map("source_event_id")
+  currency      String             @default("KES")
+  status        JournalEntryStatus @default(POSTED)
+  postedAt      DateTime           @default(now()) @map("posted_at")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  merchant      Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  lines         JournalLine[]
+
+  @@unique([merchantId, sourceEventId])
+  @@index([merchantId, postedAt])
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id             String       @id @default(uuid()) @db.Uuid
+  merchantId     String       @map("merchant_id") @db.Uuid
+  journalEntryId String       @map("journal_entry_id") @db.Uuid
+  accountCode    String       @map("account_code")
+  debitMinor     BigInt       @default(0) @map("debit_minor")
+  creditMinor    BigInt       @default(0) @map("credit_minor")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  merchant       Merchant     @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, accountCode])
+  @@index([merchantId, journalEntryId])
+  @@map("journal_lines")
+}
+
+model OutboxEvent {
+  id             String    @id @default(uuid()) @db.Uuid
+  merchantId     String    @map("merchant_id") @db.Uuid
+  eventType      String    @map("event_type")
+  idempotencyKey String    @map("idempotency_key")
+  payload        Json
+  publishedAt    DateTime? @map("published_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  merchant       Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, idempotencyKey])
+  @@index([merchantId, publishedAt])
+  @@map("outbox_events")
+}
+
+model WebhookEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  merchantId      String    @map("merchant_id") @db.Uuid
+  provider        String
+  providerEventId String    @map("provider_event_id")
+  payload         Json
+  processedAt     DateTime? @map("processed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  merchant        Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerEventId])
+  @@index([merchantId, processedAt])
+  @@map("webhook_events")
+}
+
+model IdempotencyRecord {
+  id             String   @id @default(uuid()) @db.Uuid
+  merchantId     String   @map("merchant_id") @db.Uuid
+  idempotencyKey String   @map("idempotency_key")
+  method         String
+  path           String
+  requestHash    String   @map("request_hash")
+  statusCode     Int      @map("status_code")
+  responseBody   Json     @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at")
+  merchant       Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, idempotencyKey])
+  @@index([merchantId, createdAt])
+  @@map("idempotency_records")
+}

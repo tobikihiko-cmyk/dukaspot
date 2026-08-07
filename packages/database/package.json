@@ -1,0 +1,24 @@
+{
+  "name": "@dukaspot/database",
+  "version": "0.9.5",
+  "private": true,
+  "type": "module",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "node --check src/index.js && node --check src/file-repository.js && node --check src/commerce-repository.js && node --check src/identity-repository.js && node --check src/postgres-repository.js && node --check src/migrate.js",
+    "migrate": "node src/migrate.js",
+    "prisma:validate": "DATABASE_URL=postgresql://dukaspot:dukaspot@localhost:5432/dukaspot prisma validate --schema prisma/schema.prisma",
+    "test": "node tests/repository.test.mjs && node tests/identity.test.mjs && node tests/postgres-commerce.test.mjs"
+  },
+  "dependencies": {
+    "@dukaspot/core": "0.9.5",
+    "@prisma/client": "^6.19.3",
+    "pg": "^8.13.1"
+  }
+}

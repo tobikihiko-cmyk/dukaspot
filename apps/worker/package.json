@@ -1,0 +1,19 @@
+{
+  "name": "@dukaspot/worker",
+  "version": "0.9.5",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm run build -w @dukaspot/contracts && npm run build -w @dukaspot/config && npm run build -w @dukaspot/observability && tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "build": "tsc -b",
+    "test": "npm run build"
+  },
+  "dependencies": {
+    "@dukaspot/config": "0.9.5",
+    "@dukaspot/contracts": "0.9.5",
+    "@dukaspot/observability": "0.9.5",
+    "bullmq": "^5.58.0",
+    "ioredis": "^5.7.0"
+  }
+}

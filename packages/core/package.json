@@ -1,0 +1,17 @@
+{
+  "name": "@dukaspot/core",
+  "version": "0.9.5",
+  "private": true,
+  "type": "module",
+  "types": "./src/ledger.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/ledger.d.ts",
+      "import": "./src/ledger.js"
+    }
+  },
+  "scripts": {
+    "build": "node --check src/ledger.js",
+    "test": "node tests/ledger.test.mjs"
+  }
+}

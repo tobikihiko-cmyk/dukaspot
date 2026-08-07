@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dukaspot reconciliation tests</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 32px;
+      }
+
+      pre {
+        border: 1px solid #d8e0e1;
+        border-radius: 8px;
+        padding: 16px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Dukaspot reconciliation tests</h1>
+    <pre id="results">Running...</pre>
+
+    <script type="module">
+      import {
+        buildReconciliation,
+        createSeedData,
+        deriveOrder,
+        getCustomerProfiles,
+        getInventoryRows,
+        normalizePhone,
+        parseMpesaCsv,
+      } from "@dukaspot/core";
+
+      const output = [];
+
+      function assert(condition, message) {
+        if (!condition) throw new Error(message);
+      }
+
+      function test(name, fn) {
+        try {
+          fn();
+          output.push(`PASS ${name}`);
+        } catch (error) {
+          output.push(`FAIL ${name}: ${error.message}`);
+          throw error;
+        }
+      }
+
+      test("normalizes Kenyan mobile numbers", () => {
+        assert(normalizePhone("0712345678") === "+254712345678", "07 number failed");
+        assert(normalizePhone("+254 701 555 901") === "+254701555901", "+254 failed");
+        assert(normalizePhone("100991881") === "+254100991881", "01 short form failed");
+      });
+
+      test("parses M-PESA CSV rows", () => {
+        const rows = parseMpesaCsv(
+          [
+            "Date,Receipt,Payer,Phone,Paid In,Details",
+            "2026-08-06T10:30:00+03:00,QH80NEW001,Jane Njeri,0712345678,2650,Received from Jane Njeri 0712345678",
+          ].join("\n")
+        );
+        assert(rows.length === 1, "expected one row");
+        assert(rows[0].amount === 2650, "amount not parsed");
+        assert(rows[0].phone === "+254712345678", "phone not parsed");
+      });
+
+      test("suggests an exact payment match", () => {
+        const state = createSeedData(new Date("2026-08-06T12:00:00+03:00"));
+        const reconciliation = buildReconciliation(state.orders, state.payments);
+        const janePayment = state.payments.find((payment) => payment.receipt === "QH80ABC123");
+        const suggestion = reconciliation.suggestions[janePayment.id][0];
+        assert(suggestion.orderId === "ord_1001", "wrong suggested order");
+        assert(suggestion.score >= 80, "confidence too low");
+      });
+
+      test("derives partial balances from matched deposits", () => {
+        const state = createSeedData(new Date("2026-08-06T12:00:00+03:00"));
+        const order = state.orders.find((entry) => entry.id === "ord_1003");
+        const derived = deriveOrder(order, state.payments);
+        assert(derived.computedPaymentStatus === "partial", "expected partial status");
+        assert(derived.balance === 1400, "expected KES 1400 balance");
+      });
+
+      test("derives inventory and customer records", () => {
+        const state = createSeedData(new Date("2026-08-06T12:00:00+03:00"));
+        const inventory = getInventoryRows(state.inventory, state.orders, state.payments);
+        const customers = getCustomerProfiles(state.orders, state.payments);
+        assert(inventory.some((item) => item.productName === "Denim midi dress"), "inventory missing product");
+        assert(customers.some((customer) => customer.name === "Brian Otieno"), "customer profile missing");
+      });
+
+      document.body.dataset.status = "passed";
+      document.querySelector("#results").textContent = output.join("\n");
+    </script>
+  </body>
+</html>
